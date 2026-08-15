@@ -1,0 +1,6 @@
+{
+  "name": "MyPortfolio",
+  "description": "High-performance creative director portfolio featuring responsive media optimization, fluid simulations, and optimized mobile loading.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
