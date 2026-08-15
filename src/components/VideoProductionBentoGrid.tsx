@@ -35,18 +35,6 @@ function getYouTubeId(url: string): string | null {
 // Promos, Trailers, Explainers & Intros
 const widescreenVideos: VideoProject[] = [
   {
-    id: "wide-1",
-    title: "Asian Hockey — Projection Mapping",
-    subtitle: "Immersive Projection Mapping & Dynamic Visuals",
-    category: "Event Visuals",
-    aspectRatio: "16:9",
-    duration: "4K Master",
-    resolution: "4K UHD • Promo",
-    videoUrl: "https://youtu.be/N6dn3veKVLE",
-    description: "A high-impact projection mapping experience created for Asian Hockey, blending immersive visuals, dynamic motion graphics, and synchronized content to transform the event space and bring the energy of the sport to life.",
-    tags: ["Projection Mapping", "Asian Hockey", "Motion Graphics", "Event Visuals"]
-  },
-  {
     id: "wide-2",
     title: "Avarae 2.0 — Teaser",
     subtitle: "Cinematic Teaser & Visual Effects",
@@ -57,6 +45,18 @@ const widescreenVideos: VideoProject[] = [
     videoUrl: "https://youtu.be/vTCkiLbOE4w",
     description: "A cinematic teaser created for Avarae II, combining dynamic editing, visual effects, motion graphics, and atmospheric visuals to build anticipation and set the tone for the project.",
     tags: ["Cinematic Teaser", "Avarae II", "Visual Effects", "Atmospheric"]
+  },
+  {
+    id: "wide-1",
+    title: "Asian Hockey — Projection Mapping",
+    subtitle: "Immersive Projection Mapping & Dynamic Visuals",
+    category: "Event Visuals",
+    aspectRatio: "16:9",
+    duration: "4K Master",
+    resolution: "4K UHD • Promo",
+    videoUrl: "https://youtu.be/N6dn3veKVLE",
+    description: "A high-impact projection mapping experience created for Asian Hockey, blending immersive visuals, dynamic motion graphics, and synchronized content to transform the event space and bring the energy of the sport to life.",
+    tags: ["Projection Mapping", "Asian Hockey", "Motion Graphics", "Event Visuals"]
   },
   {
     id: "wide-3",
@@ -306,9 +306,6 @@ export default function VideoProductionBentoGrid() {
                 <h4 className="text-lg sm:text-xl font-bold text-white tracking-tight">
                   Promos & Trailers
                 </h4>
-                <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-white/70 text-[10px] font-mono">
-                  Promos & Trailers
-                </span>
               </div>
             </div>
 
@@ -335,9 +332,6 @@ export default function VideoProductionBentoGrid() {
                 <h4 className="text-lg sm:text-xl font-bold text-white tracking-tight">
                   Reels & Shorts
                 </h4>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#FE4A03]/20 border border-[#FE4A03]/40 text-[#FE4A03] text-[10px] font-mono font-bold">
-                  Reels & Shorts
-                </span>
               </div>
             </div>
 

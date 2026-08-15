@@ -44,7 +44,6 @@ export default function App() {
     { name: "Why Me", href: "#stats-section" },
     { name: "Services", href: "#services-section" },
     { name: "Process", href: "#process-section" },
-    { name: "Contact", href: "#footer" },
   ];
 
   useEffect(() => {
