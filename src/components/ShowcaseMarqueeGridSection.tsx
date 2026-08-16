@@ -104,8 +104,9 @@ interface MarqueeRowProps {
 }
 
 function MarqueeRow({ items, direction, speed }: MarqueeRowProps) {
-  // Duplicate items 2 times for seamless 50% translation loop with reduced memory footprint
-  const duplicatedItems = [...items, ...items];
+  // Repeat items 4 times so that a -50% shift (2 full repetitions) always has 2 full repetitions
+  // trailing behind it, eliminating any blank gaps even on ultra-wide 4K screens.
+  const duplicatedItems = [...items, ...items, ...items, ...items];
 
   const animateX =
     direction === "left"
@@ -127,22 +128,24 @@ function MarqueeRow({ items, direction, speed }: MarqueeRowProps) {
       >
         {duplicatedItems.map((item, idx) => {
           const optimizedImage = getOptimizedCloudinaryUrl(item.image, {
-            width: 420,
+            height: 450,
             quality: "auto:good",
             format: "auto",
+            crop: "limit",
           });
 
           return (
             <div
               key={`marquee-${item.id}-${idx}`}
-              className="relative h-28 xs:h-32 sm:h-44 md:h-52 shrink-0 rounded-none overflow-hidden bg-[#121214] border-0"
+              className="relative h-28 xs:h-32 sm:h-44 md:h-52 w-auto shrink-0 rounded-none overflow-hidden bg-transparent border-0"
             >
               <img
                 src={optimizedImage}
                 alt={item.title || "Showcase Item"}
-                className="h-full w-auto max-w-[420px] object-cover object-center"
-                loading="lazy"
+                className="h-full w-auto max-w-none block object-contain object-center select-none"
+                loading="eager"
                 decoding="async"
+                draggable={false}
                 referrerPolicy="no-referrer"
               />
             </div>
