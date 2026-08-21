@@ -1,7 +1,23 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ArrowUpRight, CheckCircle2, Sparkles, Layers, Star, Clock, UserCheck, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
+import {
+  X,
+  CheckCircle2,
+  Sparkles,
+  Layers,
+  Star,
+  Clock,
+  UserCheck,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Move
+} from "lucide-react";
 import { getOptimizedCloudinaryUrl } from "../lib/imageOptimization";
 
 export interface CaseStudyProject {
@@ -29,6 +45,12 @@ interface CaseStudyModalProps {
 
 export default function CaseStudyModal({ project, onClose, index = 0, overrideLayout }: CaseStudyModalProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragOrigin, setDragOrigin] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isFullscreenMode, setIsFullscreenMode] = useState<boolean>(false);
+  const lightboxContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Collect all unique showcase images for lightbox carousel
   const allImages = project
@@ -41,18 +63,97 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
   const openLightbox = (imgUrl: string) => {
     const idx = allImages.indexOf(imgUrl);
     setLightboxIndex(idx !== -1 ? idx : 0);
+    setZoomLevel(1);
+    setPanOffset({ x: 0, y: 0 });
   };
 
-  const closeLightbox = () => setLightboxIndex(null);
+  const closeLightbox = () => {
+    setLightboxIndex(null);
+    setZoomLevel(1);
+    setPanOffset({ x: 0, y: 0 });
+  };
+
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(prev + 0.5, 4));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => {
+      const next = Math.max(prev - 0.5, 1);
+      if (next === 1) setPanOffset({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  const handleResetZoom = () => {
+    setZoomLevel(1);
+    setPanOffset({ x: 0, y: 0 });
+  };
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      lightboxContainerRef.current?.requestFullscreen?.().catch(() => {});
+      setIsFullscreenMode(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreenMode(false);
+    }
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (zoomLevel > 1) {
+      handleResetZoom();
+    } else {
+      setZoomLevel(2.2);
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (lightboxIndex === null) return;
+    if (e.deltaY < 0) {
+      setZoomLevel((prev) => Math.min(prev + 0.25, 4));
+    } else if (e.deltaY > 0) {
+      setZoomLevel((prev) => {
+        const next = Math.max(prev - 0.25, 1);
+        if (next === 1) setPanOffset({ x: 0, y: 0 });
+        return next;
+      });
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoomLevel > 1) {
+      setIsDragging(true);
+      setDragOrigin({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && zoomLevel > 1) {
+      setPanOffset({
+        x: e.clientX - dragOrigin.x,
+        y: e.clientY - dragOrigin.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
 
   const nextLightboxImage = useCallback(() => {
     if (lightboxIndex === null || allImages.length === 0) return;
     setLightboxIndex((prev) => (prev !== null ? (prev + 1) % allImages.length : 0));
+    setZoomLevel(1);
+    setPanOffset({ x: 0, y: 0 });
   }, [lightboxIndex, allImages.length]);
 
   const prevLightboxImage = useCallback(() => {
     if (lightboxIndex === null || allImages.length === 0) return;
     setLightboxIndex((prev) => (prev !== null ? (prev - 1 + allImages.length) % allImages.length : 0));
+    setZoomLevel(1);
+    setPanOffset({ x: 0, y: 0 });
   }, [lightboxIndex, allImages.length]);
 
   useEffect(() => {
@@ -63,8 +164,12 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
     const handleKeyDown = (e: KeyboardEvent) => {
       if (lightboxIndex !== null) {
         if (e.key === "Escape") closeLightbox();
-        if (e.key === "ArrowRight") nextLightboxImage();
-        if (e.key === "ArrowLeft") prevLightboxImage();
+        else if (e.key === "ArrowRight") nextLightboxImage();
+        else if (e.key === "ArrowLeft") prevLightboxImage();
+        else if (e.key === "+" || e.key === "=") handleZoomIn();
+        else if (e.key === "-" || e.key === "_") handleZoomOut();
+        else if (e.key === "0") handleResetZoom();
+        else if (e.key === "f" || e.key === "F") handleToggleFullscreen();
       } else if (e.key === "Escape") {
         onClose();
       }
@@ -74,7 +179,7 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [project, lightboxIndex, nextLightboxImage, prevLightboxImage, onClose]);
+  }, [project, lightboxIndex, nextLightboxImage, prevLightboxImage, onClose, zoomLevel]);
 
   if (!project || typeof document === "undefined") return null;
 
@@ -112,7 +217,7 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
           transition={{ type: "spring", stiffness: 280, damping: 26 }}
           className="relative w-full max-w-6xl max-h-[92vh] sm:max-h-[88vh] bg-[#0A0A0B] border border-white/15 rounded-3xl overflow-y-auto overscroll-contain z-10 text-white shadow-[0_25px_80px_rgba(0,0,0,0.9)] no-scrollbar pb-8 sm:pb-12"
         >
-          {/* Universal Close Button - Absolute positioning so it does not disrupt flow or push content off-center */}
+          {/* Universal Close Button */}
           <button
             onClick={onClose}
             aria-label="Close modal"
@@ -199,26 +304,20 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
 
                 {/* Image Gallery Canvas Column (3-Image Showcase Layout matching reference) */}
                 <div className={`lg:col-span-7 flex flex-col gap-3.5 sm:gap-4 ${index % 2 === 1 ? 'lg:order-1' : 'lg:order-2'}`}>
-                  {/* Top Featured Image (Gallery Image 1 - Full Width) */}
+                  {/* Top Featured Image */}
                   {project.gallery[0] && (
                     <div
                       onClick={() => openLightbox(project.gallery[0])}
-                      className="w-full h-60 sm:h-80 lg:h-[400px] rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_25px_rgba(254,74,3,0.25)] relative group bg-[#0C0C0E] shadow-xl cursor-zoom-in transition-all duration-300 flex items-center justify-center"
+                      className="w-full h-64 sm:h-80 lg:h-[400px] rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_25px_rgba(254,74,3,0.25)] relative group bg-[#0C0C0E] shadow-xl cursor-pointer transition-all duration-300 flex items-center justify-center"
                     >
                       <img
-                        src={getOptimizedCloudinaryUrl(project.gallery[0], { width: 1000, quality: "auto:good" })}
+                        src={getOptimizedCloudinaryUrl(project.gallery[0], { width: 1400, quality: "auto:good" })}
                         alt={`${project.title} - Showcase 1`}
                         loading="lazy"
                         decoding="async"
                         className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out"
                         referrerPolicy="no-referrer"
                       />
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
-                        <span className="px-3.5 py-1.5 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white text-xs font-mono flex items-center gap-1.5 shadow-2xl">
-                          <Maximize2 className="w-3.5 h-3.5 text-[#FE4A03]" />
-                          <span>View Full Resolution</span>
-                        </span>
-                      </div>
                     </div>
                   )}
 
@@ -228,21 +327,16 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
                       <div
                         key={`gallery-sub-${i}-${img}`}
                         onClick={() => openLightbox(img)}
-                        className="w-full h-44 sm:h-60 rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_20px_rgba(254,74,3,0.25)] relative group bg-[#0C0C0E] shadow-lg cursor-zoom-in transition-all duration-300 flex items-center justify-center"
+                        className="w-full h-48 sm:h-64 rounded-2xl sm:rounded-3xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_20px_rgba(254,74,3,0.25)] relative group bg-[#0C0C0E] shadow-lg cursor-pointer transition-all duration-300 flex items-center justify-center"
                       >
                         <img
-                          src={getOptimizedCloudinaryUrl(img, { width: 600, quality: "auto:good" })}
+                          src={getOptimizedCloudinaryUrl(img, { width: 900, quality: "auto:good" })}
                           alt={`${project.title} - Showcase ${i + 2}`}
                           loading="lazy"
                           decoding="async"
                           className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out"
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute bottom-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                          <span className="p-2 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-xl">
-                            <Maximize2 className="w-3.5 h-3.5 text-[#FE4A03]" />
-                          </span>
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -259,20 +353,20 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
               {/* Full-Bleed Panoramic Top Banner */}
               <div
                 onClick={() => openLightbox(project.gallery[0] || project.image)}
-                className="relative w-full h-52 sm:h-80 md:h-[380px] overflow-hidden group cursor-zoom-in"
+                className="relative w-full h-52 sm:h-80 md:h-[380px] overflow-hidden group cursor-pointer"
               >
                 <img
-                  src={getOptimizedCloudinaryUrl(project.gallery[0] || project.image, { width: 1200, quality: "auto:good" })}
+                  src={getOptimizedCloudinaryUrl(project.gallery[0] || project.image, { width: 1400, quality: "auto:good" })}
                   alt={project.title}
                   loading="lazy"
                   decoding="async"
                   className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-700 ease-out"
                   referrerPolicy="no-referrer"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0B] via-[#0A0A0B]/50 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0B] via-[#0A0A0B]/50 to-transparent pointer-events-none" />
 
                 {/* Floating Info Overlay inside Banner */}
-                <div className="absolute bottom-4 sm:bottom-8 left-4 sm:left-10 right-4 sm:right-10 flex flex-col gap-1.5 sm:gap-2">
+                <div className="absolute bottom-4 sm:bottom-8 left-4 sm:left-10 right-4 sm:right-10 flex flex-col gap-1.5 sm:gap-2 pointer-events-none">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-[#FE4A03] text-white text-[10px] sm:text-xs font-bold font-mono">
                       {project.category}
@@ -352,10 +446,10 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
                       <div
                         key={`cinematic-gallery-${i}-${img}`}
                         onClick={() => openLightbox(img)}
-                        className="w-full h-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_20px_rgba(254,74,3,0.25)] relative group cursor-zoom-in transition-all duration-300"
+                        className="w-full h-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_20px_rgba(254,74,3,0.25)] relative group cursor-pointer transition-all duration-300"
                       >
                         <img
-                          src={getOptimizedCloudinaryUrl(img, { width: 500, quality: "auto:good" })}
+                          src={getOptimizedCloudinaryUrl(img, { width: 600, quality: "auto:good" })}
                           alt={`Gallery asset ${i + 1}`}
                           loading="lazy"
                           decoding="async"
@@ -420,14 +514,14 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
                 {/* Column 2: Main Featured Hero Image (5 cols) */}
                 <div
                   onClick={() => openLightbox(project.gallery[0] || project.image)}
-                  className="md:col-span-5 w-full h-52 md:h-[420px] rounded-2xl overflow-hidden border border-[#FE4A03]/40 hover:border-[#FE4A03] hover:shadow-[0_0_30px_rgba(254,74,3,0.3)] relative group cursor-zoom-in transition-all duration-300"
+                  className="md:col-span-5 w-full h-52 md:h-[420px] rounded-2xl overflow-hidden border border-[#FE4A03]/40 hover:border-[#FE4A03] hover:shadow-[0_0_30px_rgba(254,74,3,0.3)] relative group cursor-pointer transition-all duration-300"
                 >
                   <img
-                    src={getOptimizedCloudinaryUrl(project.gallery[0] || project.image, { width: 900, quality: "auto:good" })}
+                    src={getOptimizedCloudinaryUrl(project.gallery[0] || project.image, { width: 1200, quality: "auto:good" })}
                     alt={project.title}
                     loading="lazy"
                     decoding="async"
-                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 ease-out"
+                    className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out"
                     referrerPolicy="no-referrer"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
@@ -455,10 +549,10 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
                         <div
                           key={`cyber-gallery-${i}-${gImg}`}
                           onClick={() => openLightbox(gImg)}
-                          className="h-20 sm:h-24 rounded-xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_15px_rgba(254,74,3,0.25)] relative group cursor-zoom-in transition-all duration-300"
+                          className="h-20 sm:h-24 rounded-xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_15px_rgba(254,74,3,0.25)] relative group cursor-pointer transition-all duration-300"
                         >
                           <img
-                            src={getOptimizedCloudinaryUrl(gImg, { width: 350, quality: "auto:good" })}
+                            src={getOptimizedCloudinaryUrl(gImg, { width: 450, quality: "auto:good" })}
                             alt={`Gallery ${i}`}
                             loading="lazy"
                             decoding="async"
@@ -499,17 +593,17 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
 
               {/* Main Content 2-Column Split */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
-                {/* 16:9 Aspect ratio Image */}
+                {/* Image */}
                 <div
                   onClick={() => openLightbox(project.gallery[0] || project.image)}
-                  className={`lg:col-span-7 h-52 sm:h-80 md:h-[380px] rounded-2xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_25px_rgba(254,74,3,0.25)] relative group cursor-zoom-in transition-all duration-300 ${index % 2 === 1 ? 'lg:order-2' : 'lg:order-1'}`}
+                  className={`lg:col-span-7 h-52 sm:h-80 md:h-[380px] rounded-2xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_25px_rgba(254,74,3,0.25)] relative group cursor-pointer transition-all duration-300 ${index % 2 === 1 ? 'lg:order-2' : 'lg:order-1'}`}
                 >
                   <img
-                    src={getOptimizedCloudinaryUrl(project.gallery[0] || project.image, { width: 1000, quality: "auto:good" })}
+                    src={getOptimizedCloudinaryUrl(project.gallery[0] || project.image, { width: 1200, quality: "auto:good" })}
                     alt={project.title}
                     loading="lazy"
                     decoding="async"
-                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 ease-out"
+                    className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out"
                     referrerPolicy="no-referrer"
                   />
                 </div>
@@ -549,14 +643,14 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
                     <div
                       key={`minimal-gallery-${i}-${img}`}
                       onClick={() => openLightbox(img)}
-                      className="h-52 rounded-2xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_20px_rgba(254,74,3,0.25)] relative group cursor-zoom-in transition-all duration-300"
+                      className="h-52 rounded-2xl overflow-hidden border border-white/10 hover:border-[#FE4A03]/80 hover:shadow-[0_0_20px_rgba(254,74,3,0.25)] relative group cursor-pointer transition-all duration-300"
                     >
                       <img
-                        src={getOptimizedCloudinaryUrl(img, { width: 600, quality: "auto:good" })}
+                        src={getOptimizedCloudinaryUrl(img, { width: 700, quality: "auto:good" })}
                         alt={`Gallery asset ${i + 1}`}
                         loading="lazy"
                         decoding="async"
-                        className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 ease-out"
+                        className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out"
                         referrerPolicy="no-referrer"
                       />
                     </div>
@@ -568,43 +662,43 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
         </motion.div>
       </div>
 
-      {/* FULL-SCREEN INTERACTIVE LIGHTBOX OVERLAY */}
+      {/* FULLSCREEN INTERACTIVE IMAGE LIGHTBOX & ZOOM VIEWER */}
       <AnimatePresence>
         {lightboxIndex !== null && allImages[lightboxIndex] && (
           <motion.div
+            ref={lightboxContainerRef}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-between bg-black/95 backdrop-blur-2xl p-4 sm:p-6 md:p-8 select-none"
+            className="fixed inset-0 z-[100000] flex flex-col items-center justify-center bg-black/98 backdrop-blur-3xl p-2 sm:p-4 md:p-6 select-none overflow-hidden"
           >
-            {/* Lightbox Header Bar */}
-            <div className="w-full max-w-7xl flex items-center justify-between z-20">
-              <div className="flex items-center gap-3">
-                <span className="px-3 py-1 rounded-full bg-[#FE4A03] text-white text-xs font-mono font-bold tracking-wider uppercase">
-                  SHOWCASE VIEW
-                </span>
-                <span className="text-white/80 text-xs sm:text-sm font-medium font-mono hidden sm:inline-block">
-                  {project.title}
-                </span>
-                <span className="text-white/40 text-xs font-mono">
-                  ({lightboxIndex + 1} / {allImages.length})
-                </span>
-              </div>
+            {/* Minimal Floating Close Button */}
+            <button
+              onClick={closeLightbox}
+              aria-label="Close Lightbox"
+              title="Close (Esc)"
+              className="absolute top-4 sm:top-6 right-4 sm:right-6 z-40 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/70 hover:bg-[#FE4A03] border border-white/20 hover:border-[#FE4A03] flex items-center justify-center text-white backdrop-blur-md transition-all cursor-pointer group shadow-2xl"
+            >
+              <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+            </button>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={closeLightbox}
-                  aria-label="Close Lightbox"
-                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/10 hover:bg-[#FE4A03] border border-white/20 hover:border-[#FE4A03] flex items-center justify-center text-white transition-all cursor-pointer group"
-                >
-                  <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-                </button>
-              </div>
-            </div>
-
-            {/* Main Lightbox Image Viewport with Controls */}
-            <div className="relative w-full max-w-6xl flex-1 my-3 sm:my-4 flex items-center justify-center overflow-hidden">
+            {/* Main Interactive Zoom Canvas */}
+            <div
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onDoubleClick={handleDoubleClick}
+              className={`relative w-full h-full flex-1 flex items-center justify-center overflow-hidden rounded-2xl ${
+                zoomLevel > 1
+                  ? isDragging
+                    ? "cursor-grabbing"
+                    : "cursor-grab"
+                  : "cursor-zoom-in"
+              }`}
+            >
               {/* Previous Image Arrow */}
               {allImages.length > 1 && (
                 <button
@@ -613,29 +707,32 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
                     prevLightboxImage();
                   }}
                   aria-label="Previous Image"
-                  className="absolute left-2 sm:left-4 z-30 w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-black/60 hover:bg-[#FE4A03] border border-white/20 hover:border-[#FE4A03] flex items-center justify-center text-white backdrop-blur-md transition-all duration-300 cursor-pointer shadow-2xl hover:scale-110 active:scale-95"
+                  className="absolute left-3 sm:left-6 z-30 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-black/80 hover:bg-[#FE4A03] border border-white/20 hover:border-[#FE4A03] flex items-center justify-center text-white backdrop-blur-md transition-all duration-300 cursor-pointer shadow-2xl hover:scale-110 active:scale-95"
                 >
-                  <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+                  <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
                 </button>
               )}
 
-              {/* High-Res Image Canvas */}
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={lightboxIndex}
-                  src={getOptimizedCloudinaryUrl(allImages[lightboxIndex], { width: 1800, quality: "auto:good" })}
-                  alt={`${project.title} showcase high-res ${lightboxIndex + 1}`}
-                  loading="lazy"
+              {/* Active Image with Pan & Zoom Transform */}
+              <div
+                style={{
+                  transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+                  transformOrigin: "center center",
+                  transition: isDragging ? "none" : "transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                }}
+                className="w-full h-full flex items-center justify-center p-2 sm:p-4 select-none touch-none"
+              >
+                <img
+                  key={`zoom-img-${lightboxIndex}`}
+                  src={getOptimizedCloudinaryUrl(allImages[lightboxIndex], { width: 2600, quality: "auto:best" })}
+                  alt={`${project.title} showcase full resolution ${lightboxIndex + 1}`}
+                  loading="eager"
                   decoding="async"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="max-w-full max-h-[78vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+                  draggable={false}
+                  className="max-w-full max-h-[82vh] object-contain select-none pointer-events-none drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
                   referrerPolicy="no-referrer"
                 />
-              </AnimatePresence>
+              </div>
 
               {/* Next Image Arrow */}
               {allImages.length > 1 && (
@@ -645,32 +742,44 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
                     nextLightboxImage();
                   }}
                   aria-label="Next Image"
-                  className="absolute right-2 sm:right-4 z-30 w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-black/60 hover:bg-[#FE4A03] border border-white/20 hover:border-[#FE4A03] flex items-center justify-center text-white backdrop-blur-md transition-all duration-300 cursor-pointer shadow-2xl hover:scale-110 active:scale-95"
+                  className="absolute right-3 sm:right-6 z-30 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-black/80 hover:bg-[#FE4A03] border border-white/20 hover:border-[#FE4A03] flex items-center justify-center text-white backdrop-blur-md transition-all duration-300 cursor-pointer shadow-2xl hover:scale-110 active:scale-95"
                 >
-                  <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+                  <ChevronRight className="w-6 h-6 sm:w-7 sm:h-7" />
                 </button>
+              )}
+
+              {/* Floating Pan Hint when Zoomed */}
+              {zoomLevel > 1 && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-black/85 backdrop-blur-md border border-white/20 text-white/80 text-[11px] font-mono flex items-center gap-2 pointer-events-none shadow-2xl">
+                  <Move className="w-3.5 h-3.5 text-[#FE4A03]" />
+                  <span>Click & Drag to Pan • Double-click to Reset</span>
+                </div>
               )}
             </div>
 
             {/* Lightbox Footer Thumbnail Bar */}
             {allImages.length > 1 && (
-              <div className="flex items-center justify-center gap-2 sm:gap-3 z-20 overflow-x-auto max-w-full p-2 no-scrollbar">
+              <div className="flex items-center justify-center gap-2 sm:gap-3 z-30 overflow-x-auto max-w-full py-1.5 px-3 bg-[#0A0A0C]/80 border border-white/10 backdrop-blur-xl rounded-2xl no-scrollbar">
                 {allImages.map((img, idx) => (
                   <button
                     key={`lightbox-thumb-${idx}-${img}`}
-                    onClick={() => setLightboxIndex(idx)}
-                    className={`relative h-12 w-16 sm:h-16 sm:w-24 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer shrink-0 ${
+                    onClick={() => {
+                      setLightboxIndex(idx);
+                      setZoomLevel(1);
+                      setPanOffset({ x: 0, y: 0 });
+                    }}
+                    className={`relative h-11 w-14 sm:h-14 sm:w-20 rounded-xl overflow-hidden border transition-all duration-300 cursor-pointer shrink-0 bg-[#070709] p-0.5 ${
                       idx === lightboxIndex
-                        ? "border-[#FE4A03] ring-2 ring-[#FE4A03]/50 scale-105"
+                        ? "border-[#FE4A03] ring-2 ring-[#FE4A03]/60 scale-105 shadow-[0_0_15px_rgba(254,74,3,0.5)]"
                         : "border-white/20 opacity-50 hover:opacity-100 hover:border-white/50"
                     }`}
                   >
                     <img
-                      src={getOptimizedCloudinaryUrl(img, { width: 160, quality: "auto:eco" })}
+                      src={getOptimizedCloudinaryUrl(img, { width: 180, quality: "auto:eco" })}
                       alt={`Thumbnail ${idx + 1}`}
                       loading="lazy"
                       decoding="async"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       referrerPolicy="no-referrer"
                     />
                   </button>
@@ -685,4 +794,5 @@ export default function CaseStudyModal({ project, onClose, index = 0, overrideLa
 
   return createPortal(modalContent, document.body);
 }
+
 
